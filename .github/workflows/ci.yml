@@ -38,5 +38,5 @@ jobs:
 
       - run: npm cache clean --force
       - run: rm -rf node_modules
-      - run: npm install
+      - run: npm install --include=dev
       - run: npm run build
