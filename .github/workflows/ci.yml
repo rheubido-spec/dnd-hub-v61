@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -38,6 +38,6 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - run: npm cache clean --force
-      - run: rm -rf node_modules package-lock.json
+      - run: rm -rf node_modules
       - run: npm install --include=dev
       - run: npm run build
