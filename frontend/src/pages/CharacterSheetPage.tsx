@@ -55,7 +55,7 @@ async function buildFilledCharacterSheet(payload: ExportPayload): Promise<Uint8A
     'Features.0.1': safeText(payload.custom_backstory),
     'Notes.0': Array.isArray(payload.loadout_summary) ? payload.loadout_summary.join('\n') : '',
     'Notes.2': '',
-    'Notes.3': payload.ruleset_label ? `Ruleset: ${payload.ruleset_label}` : '',
+    'Notes.3': '',
   }
 
   for (const [fieldName, value] of Object.entries(fieldMap)) {
