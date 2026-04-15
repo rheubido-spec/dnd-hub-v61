@@ -35,7 +35,7 @@ class User(Base, TimestampMixin):
     party_audit_logs: Mapped[list[PartyAuditLog]] = relationship(back_populates="actor", foreign_keys="PartyAuditLog.actor_id")
     maintenance_runs: Mapped[list[MaintenanceAgentRun]] = relationship(back_populates="created_by", foreign_keys="MaintenanceAgentRun.created_by_user_id")
     map_projects: Mapped[list[MapProject]] = relationship(back_populates="owner", cascade="all, delete-orphan")
-
+    tracker_states: Mapped[list["EncounterTrackerState"]] = relationship(back_populates="owner", cascade="all, delete-orphan")
 
 class Party(Base, TimestampMixin):
     __tablename__ = "parties"
