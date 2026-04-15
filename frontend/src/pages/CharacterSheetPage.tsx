@@ -93,7 +93,7 @@ export function CharacterSheetPage() {
 
       try {
         const bytes = await buildFilledCharacterSheet(payload)
-        const blob = new Blob([bytes], { type: 'application/pdf' })
+        const blob = new Blob([bytes.buffer], { type: 'application/pdf' })
         objectUrl = URL.createObjectURL(blob)
         setFilledPdfUrl(objectUrl)
       } catch (error) {
