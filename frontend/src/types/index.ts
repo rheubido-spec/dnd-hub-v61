@@ -211,4 +211,11 @@ export type MapProject = {
   created_at: string
   updated_at: string
 }
-
+export type EncounterTrackerState = {
+  id: number
+  owner_id: number
+  title: string
+  tracker_data: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
