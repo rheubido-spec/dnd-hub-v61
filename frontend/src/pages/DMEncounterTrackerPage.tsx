@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
-import { PageHero } from '../components/PageHero'
+import { useEffect, useMemo, useState } from 'react'
+import { apiFetch } from '../api/client'
+import type { EncounterTrackerState } from '../types'
 
 type ConditionKey =
   | 'blinded'
@@ -47,26 +48,6 @@ const CONDITION_LABELS: Record<ConditionKey, string> = {
   unconscious: 'Unconscious',
 }
 
-const CONDITION_LINKS: Record<ConditionKey, string> = {
-  blinded: 'https://www.dndbeyond.com/sources/dnd/br-2024/rules-glossary#BlindedCondition',
-  charmed: 'https://www.dndbeyond.com/sources/dnd/br-2024/rules-glossary#CharmedCondition',
-  deafened: 'https://www.dndbeyond.com/sources/dnd/br-2024/rules-glossary#DeafenedCondition',
-  frightened: 'https://www.dndbeyond.com/sources/dnd/br-2024/rules-glossary#FrightenedCondition',
-  grappled: 'https://www.dndbeyond.com/sources/dnd/br-2024/rules-glossary#GrappledCondition',
-  incapacitated: 'https://www.dndbeyond.com/sources/dnd/br-2024/rules-glossary#IncapacitatedCondition',
-  invisible: 'https://www.dndbeyond.com/sources/dnd/br-2024/rules-glossary#InvisibleCondition',
-  paralyzed: 'https://www.dndbeyond.com/sources/dnd/br-2024/rules-glossary#ParalyzedCondition',
-  petrified: 'https://www.dndbeyond.com/sources/dnd/br-2024/rules-glossary#PetrifiedCondition',
-  poisoned: 'https://www.dndbeyond.com/sources/dnd/br-2024/rules-glossary#PoisonedCondition',
-  prone: 'https://www.dndbeyond.com/sources/dnd/br-2024/rules-glossary#ProneCondition',
-  restrained: 'https://www.dndbeyond.com/sources/dnd/br-2024/rules-glossary#RestrainedCondition',
-  stunned: 'https://www.dndbeyond.com/sources/dnd/br-2024/rules-glossary#StunnedCondition',
-  unconscious: 'https://www.dndbeyond.com/sources/dnd/br-2024/rules-glossary#UnconsciousCondition',
-}
-
-const EXHAUSTION_LINK =
-  'https://www.dndbeyond.com/sources/dnd/br-2024/rules-glossary#ExhaustionCondition'
-
 function emptyConditions(): Record<ConditionKey, boolean> {
   return {
     blinded: false,
@@ -101,28 +82,136 @@ function makeCombatant(index: number): Combatant {
   }
 }
 
+function buildDefaultCombatants(): Combatant[] {
+  return [makeCombatant(0), makeCombatant(1), makeCombatant(2), makeCombatant(3)]
+}
+
+function normalizeConditions(value: unknown): Record<ConditionKey, boolean> {
+  const raw = value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+  return {
+    blinded: Boolean(raw.blinded),
+    charmed: Boolean(raw.charmed),
+    deafened: Boolean(raw.deafened),
+    frightened: Boolean(raw.frightened),
+    grappled: Boolean(raw.grappled),
+    incapacitated: Boolean(raw.incapacitated),
+    invisible: Boolean(raw.invisible),
+    paralyzed: Boolean(raw.paralyzed),
+    petrified: Boolean(raw.petrified),
+    poisoned: Boolean(raw.poisoned),
+    prone: Boolean(raw.prone),
+    restrained: Boolean(raw.restrained),
+    stunned: Boolean(raw.stunned),
+    unconscious: Boolean(raw.unconscious),
+  }
+}
+
+function normalizeCombatants(value: unknown): Combatant[] {
+  if (!Array.isArray(value) || value.length === 0) return buildDefaultCombatants()
+
+  return value.map((entry, index) => {
+    const raw = entry && typeof entry === 'object' ? (entry as Record<string, unknown>) : {}
+    return {
+      id: typeof raw.id === 'string' && raw.id ? raw.id : makeCombatant(index).id,
+      name: typeof raw.name === 'string' && raw.name ? raw.name : `Combatant ${index + 1}`,
+      initiative: typeof raw.initiative === 'number' ? raw.initiative : Number(raw.initiative) || 0,
+      hp: typeof raw.hp === 'string' ? raw.hp : '',
+      ac: typeof raw.ac === 'string' ? raw.ac : '',
+      notes: typeof raw.notes === 'string' ? raw.notes : '',
+      inTurnOrder: raw.inTurnOrder === false ? false : true,
+      greaterInvisibility: Boolean(raw.greaterInvisibility),
+      exhaustionLevel: Math.max(0, Math.min(6, Number(raw.exhaustionLevel) || 0)),
+      conditions: normalizeConditions(raw.conditions),
+    }
+  })
+}
+
 export function DMEncounterTrackerPage() {
   const [title, setTitle] = useState('Encounter Tracker')
-  const [combatants, setCombatants] = useState<Combatant[]>([
-    makeCombatant(0),
-    makeCombatant(1),
-    makeCombatant(2),
-    makeCombatant(3),
-  ])
+  const [combatants, setCombatants] = useState<Combatant[]>(buildDefaultCombatants())
+  const [savedStateId, setSavedStateId] = useState<number | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    void loadTracker()
+  }, [])
+
+  async function loadTracker() {
+    setIsLoading(true)
+    setMessage('')
+    try {
+      const items = await apiFetch<EncounterTrackerState[]>('/tracker')
+      const latest = items[0]
+
+      if (!latest) {
+        setSavedStateId(null)
+        setTitle('Encounter Tracker')
+        setCombatants(buildDefaultCombatants())
+        return
+      }
+
+      setSavedStateId(latest.id)
+      setTitle(typeof latest.title === 'string' && latest.title ? latest.title : 'Encounter Tracker')
+
+      const rawCombatants =
+        latest.tracker_data &&
+        typeof latest.tracker_data === 'object' &&
+        Array.isArray((latest.tracker_data as Record<string, unknown>).combatants)
+          ? (latest.tracker_data as Record<string, unknown>).combatants
+          : []
+
+      setCombatants(normalizeCombatants(rawCombatants))
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Unable to load tracker')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  async function saveTracker() {
+    setIsSaving(true)
+    setMessage('')
+
+    const payload = {
+      title,
+      tracker_data: {
+        combatants,
+      },
+    }
+
+    try {
+      if (savedStateId) {
+        const updated = await apiFetch<EncounterTrackerState>(`/tracker/${savedStateId}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        })
+        setSavedStateId(updated.id)
+        setMessage('Tracker saved to your account.')
+      } else {
+        const created = await apiFetch<EncounterTrackerState>('/tracker', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        })
+        setSavedStateId(created.id)
+        setMessage('Tracker saved to your account.')
+      }
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Unable to save tracker')
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   function updateCombatant(id: string, patch: Partial<Combatant>) {
     setCombatants((current) =>
       current.map((item) => {
         if (item.id !== id) return item
         const updated = { ...item, ...patch }
-
-        if (!updated.conditions.invisible) {
-          updated.greaterInvisibility = false
-        }
-
+        if (!updated.conditions.invisible) updated.greaterInvisibility = false
         if (updated.exhaustionLevel < 0) updated.exhaustionLevel = 0
         if (updated.exhaustionLevel > 6) updated.exhaustionLevel = 6
-
         return updated
       }),
     )
@@ -139,11 +228,9 @@ export function DMEncounterTrackerPage() {
             [key]: !item.conditions[key],
           },
         }
-
         if (key === 'invisible' && updated.conditions.invisible === false) {
           updated.greaterInvisibility = false
         }
-
         return updated
       }),
     )
@@ -158,10 +245,7 @@ export function DMEncounterTrackerPage() {
   }
 
   const activeCombatants = useMemo(
-    () =>
-      [...combatants]
-        .filter((item) => item.inTurnOrder)
-        .sort((a, b) => b.initiative - a.initiative),
+    () => [...combatants].filter((item) => item.inTurnOrder).sort((a, b) => b.initiative - a.initiative),
     [combatants],
   )
 
@@ -170,296 +254,202 @@ export function DMEncounterTrackerPage() {
     [combatants],
   )
 
-  function renderConditionPills(combatant: Combatant) {
-    const pills: string[] = []
-
-    if (combatant.exhaustionLevel > 0) {
-      pills.push(`Exhaustion ${combatant.exhaustionLevel}`)
-    }
-
-    Object.entries(combatant.conditions).forEach(([key, enabled]) => {
-      if (enabled) pills.push(CONDITION_LABELS[key as ConditionKey])
-    })
-
-    if (combatant.greaterInvisibility) {
-      pills.push('Greater Invisibility')
-    }
-
-    if (!pills.length) {
-      pills.push('No active conditions')
-    }
-
-    return pills.map((pill) => (
-      <span key={pill} className="tag">
-        {pill}
-      </span>
-    ))
-  }
-
   const conditionKeys = Object.keys(CONDITION_LABELS) as ConditionKey[]
 
   return (
-    <div className="page-shell">
-      <PageHero
-        variant="dashboard"
-        imageSrc="/art/dashboard-banner.png"
-        imageAlt="Fantasy adventurers standing ready"
-        eyebrow="Encounter tools"
-        title="Encounter Tracker"
-        description="Track initiative, HP, AC, notes, conditions, and quick rules access during play."
-        tags={['Tracker', 'Conditions', 'Reference links', 'DM tools']}
-      />
-
+    <div className="page-shell stack">
       <section className="card stack">
-        <label>
-          Tracker title
-          <input value={title} onChange={(e) => setTitle(e.target.value)} />
-        </label>
-        <div className="hero-tags">
-          <button type="button" onClick={addCombatant}>
-            Add combatant
+        <div className="stack">
+          <p className="eyebrow">DM Suite</p>
+          <h1>Encounter Tracker</h1>
+          <p>Track initiative, conditions, and notes — and now save the tracker to your account.</p>
+        </div>
+
+        <div className="action-row">
+          <button type="button" onClick={() => void saveTracker()} disabled={isSaving || isLoading}>
+            {isSaving ? 'Saving...' : 'Save tracker'}
+          </button>
+          <button type="button" className="button-link secondary" onClick={() => void loadTracker()} disabled={isLoading}>
+            {isLoading ? 'Loading...' : 'Reload saved tracker'}
           </button>
         </div>
+
+        {message ? <div className="notice">{message}</div> : null}
       </section>
 
-      <section className="grid two-col encounter-layout">
+      <section className="stack">
         <article className="card stack">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">Editor</p>
-              <h2>Combatants</h2>
-            </div>
-          </div>
+          <label>
+            Tracker title
+            <input value={title} onChange={(e) => setTitle(e.target.value)} />
+          </label>
 
-          <div className="stack">
-            {combatants.map((combatant) => (
-              <section key={combatant.id} className="form-section stack">
-                <div className="section-heading">
-                  <strong>{combatant.name}</strong>
-                  <button
-                    type="button"
-                    className="button-link secondary danger-button"
-                    onClick={() => removeCombatant(combatant.id)}
-                  >
-                    Remove
-                  </button>
-                </div>
-
-                <div className="form-inline">
-                  <label>
-                    Name
-                    <input
-                      value={combatant.name}
-                      onChange={(e) =>
-                        updateCombatant(combatant.id, { name: e.target.value })
-                      }
-                    />
-                  </label>
-
-                  <label>
-                    Initiative
-                    <input
-                      type="number"
-                      value={combatant.initiative}
-                      onChange={(e) =>
-                        updateCombatant(combatant.id, {
-                          initiative: Number(e.target.value) || 0,
-                        })
-                      }
-                    />
-                  </label>
-
-                  <label>
-                    HP
-                    <input
-                      value={combatant.hp}
-                      onChange={(e) =>
-                        updateCombatant(combatant.id, { hp: e.target.value })
-                      }
-                      placeholder="45 / 45"
-                    />
-                  </label>
-
-                  <label>
-                    AC
-                    <input
-                      value={combatant.ac}
-                      onChange={(e) =>
-                        updateCombatant(combatant.id, { ac: e.target.value })
-                      }
-                      placeholder="16"
-                    />
-                  </label>
-                </div>
-
-                <div className="condition-toggle-row">
-                  <button
-                    type="button"
-                    className={`button-link secondary condition-toggle ${combatant.inTurnOrder ? 'is-on' : ''}`}
-                    onClick={() =>
-                      updateCombatant(combatant.id, {
-                        inTurnOrder: !combatant.inTurnOrder,
-                      })
-                    }
-                  >
-                    {combatant.inTurnOrder ? 'In Active Turn Order' : 'Out of Turn Order'}
-                  </button>
-
-                  <button
-                    type="button"
-                    className={`button-link secondary condition-toggle ${combatant.greaterInvisibility ? 'is-on' : ''}`}
-                    disabled={!combatant.conditions.invisible}
-                    onClick={() =>
-                      updateCombatant(combatant.id, {
-                        greaterInvisibility: !combatant.greaterInvisibility,
-                      })
-                    }
-                  >
-                    Greater Invisibility
-                  </button>
-                </div>
-
-                <div className="condition-toggle-grid">
-                  {conditionKeys.map((key) => (
-                    <button
-                      key={key}
-                      type="button"
-                      className={`button-link secondary condition-toggle ${combatant.conditions[key] ? 'is-on' : ''}`}
-                      onClick={() => toggleCondition(combatant.id, key)}
-                    >
-                      {CONDITION_LABELS[key]}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="form-inline">
-                  <label className="exhaustion-stepper">
-                    Exhaustion Level
-                    <div className="exhaustion-controls">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateCombatant(combatant.id, {
-                            exhaustionLevel: combatant.exhaustionLevel - 1,
-                          })
-                        }
-                      >
-                        -
-                      </button>
-                      <span className="tag">Level {combatant.exhaustionLevel}</span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateCombatant(combatant.id, {
-                            exhaustionLevel: combatant.exhaustionLevel + 1,
-                          })
-                        }
-                      >
-                        +
-                      </button>
-                    </div>
-                  </label>
-
-                  <label>
-                    Notes
-                    <input
-                      value={combatant.notes}
-                      onChange={(e) =>
-                        updateCombatant(combatant.id, { notes: e.target.value })
-                      }
-                      placeholder="Concentrating on bless"
-                    />
-                  </label>
-                </div>
-              </section>
-            ))}
+          <div className="action-row">
+            <button type="button" onClick={addCombatant}>
+              Add combatant
+            </button>
           </div>
         </article>
 
         <article className="card stack">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">Active initiative</p>
-              <h2>{title}</h2>
-            </div>
-            <span className="tag">{activeCombatants.length} active</span>
-          </div>
+          <h2>Combatants</h2>
 
-          <div className="encounter-card-grid">
-            {activeCombatants.map((combatant) => (
-              <article key={combatant.id} className="encounter-card">
-                <h3>{combatant.name}</h3>
-                <div className="chip-row">
-                  <span className="tag">Init {combatant.initiative}</span>
-                  {combatant.ac ? <span className="tag">AC {combatant.ac}</span> : null}
-                  {combatant.hp ? <span className="tag">HP {combatant.hp}</span> : null}
-                </div>
-                <div className="chip-row">{renderConditionPills(combatant)}</div>
-                <p><strong>Notes:</strong> {combatant.notes || 'â€”'}</p>
-              </article>
-            ))}
-          </div>
-
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">Removed from turn order</p>
-              <h2>Inactive combatants</h2>
-            </div>
-            <span className="tag">{inactiveCombatants.length} inactive</span>
-          </div>
-
-          <div className="encounter-card-grid">
-            {inactiveCombatants.map((combatant) => (
-              <article key={combatant.id} className="encounter-card">
-                <h3>{combatant.name}</h3>
-                <div className="chip-row">
-                  <span className="tag">Init {combatant.initiative}</span>
-                  {combatant.ac ? <span className="tag">AC {combatant.ac}</span> : null}
-                  {combatant.hp ? <span className="tag">HP {combatant.hp}</span> : null}
-                </div>
-                <div className="chip-row">{renderConditionPills(combatant)}</div>
-                <p><strong>Notes:</strong> {combatant.notes || 'â€”'}</p>
-              </article>
-            ))}
-          </div>
-
-          <section className="card stack">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">Rules quick access</p>
-                <h2>Condition reference links</h2>
+          {combatants.map((combatant) => (
+            <div key={combatant.id} className="list-item stack">
+              <div className="section-heading">
+                <strong>{combatant.name}</strong>
+                <button type="button" className="button-link secondary danger-button" onClick={() => removeCombatant(combatant.id)}>
+                  Remove
+                </button>
               </div>
-            </div>
 
-            <div className="condition-links-grid">
-              <article className="encounter-card">
-                <h3>Exhaustion</h3>
-                <p>Use the level stepper for this condition.</p>
-                <a className="inline-link" href={EXHAUSTION_LINK} target="_blank" rel="noreferrer">
-                  Open rule explanation
-                </a>
-              </article>
+              <div className="form-inline">
+                <label>
+                  Name
+                  <input
+                    value={combatant.name}
+                    onChange={(e) => updateCombatant(combatant.id, { name: e.target.value })}
+                  />
+                </label>
 
-              {conditionKeys.map((key) => (
-                <article key={key} className="encounter-card">
-                  <h3>{CONDITION_LABELS[key]}</h3>
-                  <a
-                    className="inline-link"
-                    href={CONDITION_LINKS[key]}
-                    target="_blank"
-                    rel="noreferrer"
+                <label>
+                  Initiative
+                  <input
+                    type="number"
+                    value={combatant.initiative}
+                    onChange={(e) => updateCombatant(combatant.id, { initiative: Number(e.target.value) || 0 })}
+                  />
+                </label>
+
+                <label>
+                  HP
+                  <input
+                    value={combatant.hp}
+                    onChange={(e) => updateCombatant(combatant.id, { hp: e.target.value })}
+                    placeholder="45 / 45"
+                  />
+                </label>
+
+                <label>
+                  AC
+                  <input
+                    value={combatant.ac}
+                    onChange={(e) => updateCombatant(combatant.id, { ac: e.target.value })}
+                    placeholder="16"
+                  />
+                </label>
+              </div>
+
+              <div className="action-row">
+                <button
+                  type="button"
+                  className="button-link secondary"
+                  onClick={() =>
+                    updateCombatant(combatant.id, { inTurnOrder: !combatant.inTurnOrder })
+                  }
+                >
+                  {combatant.inTurnOrder ? 'In Active Turn Order' : 'Out of Turn Order'}
+                </button>
+
+                <button
+                  type="button"
+                  className="button-link secondary"
+                  onClick={() =>
+                    updateCombatant(combatant.id, { greaterInvisibility: !combatant.greaterInvisibility })
+                  }
+                >
+                  Greater Invisibility
+                </button>
+              </div>
+
+              <div className="chip-row">
+                {conditionKeys.map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className="button-link secondary"
+                    onClick={() => toggleCondition(combatant.id, key)}
                   >
-                    Open rule explanation
-                  </a>
-                </article>
-              ))}
+                    {CONDITION_LABELS[key]}
+                  </button>
+                ))}
+              </div>
 
-              <article className="encounter-card">
-                <h3>Greater Invisibility</h3>
-                <p>This is a spell-effect toggle layered on top of Invisible.</p>
-              </article>
+              <div className="action-row">
+                <span className="tag">Exhaustion {combatant.exhaustionLevel}</span>
+                <button
+                  type="button"
+                  className="button-link secondary"
+                  onClick={() =>
+                    updateCombatant(combatant.id, { exhaustionLevel: combatant.exhaustionLevel - 1 })
+                  }
+                >
+                  -
+                </button>
+                <button
+                  type="button"
+                  className="button-link secondary"
+                  onClick={() =>
+                    updateCombatant(combatant.id, { exhaustionLevel: combatant.exhaustionLevel + 1 })
+                  }
+                >
+                  +
+                </button>
+              </div>
+
+              <label>
+                Notes
+                <textarea
+                  value={combatant.notes}
+                  onChange={(e) => updateCombatant(combatant.id, { notes: e.target.value })}
+                  placeholder="Concentrating on bless"
+                />
+              </label>
             </div>
-          </section>
+          ))}
+        </article>
+
+        <article className="card stack">
+          <h2>{title}</h2>
+          <p>{activeCombatants.length} active</p>
+
+          {activeCombatants.map((combatant) => (
+            <div key={combatant.id} className="list-item stack">
+              <strong>{combatant.name}</strong>
+              <div className="chip-row">
+                <span className="tag">Init {combatant.initiative}</span>
+                {combatant.ac ? <span className="tag">AC {combatant.ac}</span> : null}
+                {combatant.hp ? <span className="tag">HP {combatant.hp}</span> : null}
+                {combatant.exhaustionLevel > 0 ? <span className="tag">Exhaustion {combatant.exhaustionLevel}</span> : null}
+                {Object.entries(combatant.conditions)
+                  .filter(([, enabled]) => enabled)
+                  .map(([key]) => (
+                    <span key={key} className="tag">
+                      {CONDITION_LABELS[key as ConditionKey]}
+                    </span>
+                  ))}
+                {combatant.greaterInvisibility ? <span className="tag">Greater Invisibility</span> : null}
+              </div>
+              <small>Notes: {combatant.notes || '—'}</small>
+            </div>
+          ))}
+
+          {inactiveCombatants.length > 0 ? (
+            <>
+              <h3>Inactive combatants</h3>
+              {inactiveCombatants.map((combatant) => (
+                <div key={combatant.id} className="list-item stack">
+                  <strong>{combatant.name}</strong>
+                  <div className="chip-row">
+                    <span className="tag">Init {combatant.initiative}</span>
+                    {combatant.ac ? <span className="tag">AC {combatant.ac}</span> : null}
+                    {combatant.hp ? <span className="tag">HP {combatant.hp}</span> : null}
+                  </div>
+                  <small>Notes: {combatant.notes || '—'}</small>
+                </div>
+              ))}
+            </>
+          ) : null}
         </article>
       </section>
     </div>
