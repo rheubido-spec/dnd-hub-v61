@@ -43,18 +43,18 @@ async function buildFilledCharacterSheet(payload: ExportPayload): Promise<Uint8A
     })),
   )
 
-  const fieldMap: Record<string, string> = {
-    CharacterName: safeText(payload.name),
-    ClassLevel: [safeText(payload.char_class), payload.level ? String(payload.level) : '']
-      .filter(Boolean)
-      .join(' '),
+    const fieldMap: Record<string, string> = {
+    Name: safeText(payload.name),
     Background: safeText(payload.background),
-    Race: safeText(payload.lineage),
-    Alignment: safeText(payload.alignment),
-    ProficiencBonus: payload.proficiency_bonus ? `+${payload.proficiency_bonus}` : '',
-    PersonalityTraits: safeText(payload.custom_backstory),
-    Equipment: Array.isArray(payload.loadout_summary) ? payload.loadout_summary.join('\n') : '',
-    FeaturesAndTraits: safeText(payload.ruleset_label),
+    Species: safeText(payload.lineage),
+    Class: safeText(payload.char_class),
+    Subclass: '',
+    Level: payload.level ? String(payload.level) : '',
+    PB: payload.proficiency_bonus ? `+${payload.proficiency_bonus}` : '',
+    'Features.0.0': safeText(payload.ruleset_label),
+    'Features.0.1': safeText(payload.custom_backstory),
+    'Notes.0': Array.isArray(payload.loadout_summary) ? payload.loadout_summary.join('\n') : '',
+    'Notes.2': safeText(payload.alignment),
   }
 
   for (const [fieldName, value] of Object.entries(fieldMap)) {
