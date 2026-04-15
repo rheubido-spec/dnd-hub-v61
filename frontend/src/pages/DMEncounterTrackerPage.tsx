@@ -259,11 +259,13 @@ export function DMEncounterTrackerPage() {
 
   return (
     <div className="page-shell stack">
-      <PageHero
-        eyebrow="DM Suite"
-        title="Encounter Tracker"
-        description="Track initiative, conditions, and notes — and now save the tracker to your account."
-      />
+     <PageHero
+  eyebrow="DM Suite"
+  title="Encounter Tracker"
+  description="Track initiative, conditions, and notes — and now save the tracker to your account."
+  imageSrc="/images/page-heroes/tracker.webp"
+  imageAlt="Fantasy encounter tracker with initiative and status markers"
+/>
 
       <div className="action-row">
         <button type="button" onClick={() => void saveTracker()} disabled={isSaving || isLoading}>
