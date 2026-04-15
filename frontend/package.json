@@ -12,11 +12,12 @@
     "test:e2e:system": "PLAYWRIGHT_EXECUTABLE_PATH=/usr/bin/chromium playwright test",
     "test:e2e:headed": "playwright test --headed"
   },
-  "dependencies": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "react-router-dom": "^7.0.0"
-  },
+ "dependencies": {
+  "react": "^19.0.0",
+  "react-dom": "^19.0.0",
+  "react-router-dom": "^7.0.0",
+  "pdf-lib": "^1.17.1"
+}
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
