@@ -1,7 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { apiFetch } from '../api/client'
 import { PageHero } from '../components/PageHero'
-import type { MapProject } from '../types'
 import {
   buildGeminiMapPrompt,
   GEMINI_MODEL_OPTIONS,
@@ -45,6 +44,7 @@ type SavedMap = MapForm & {
   resolvedModel: string
   promptPreview: string
 }
+
 type BackendMapProject = {
   id: number
   name: string
@@ -53,6 +53,7 @@ type BackendMapProject = {
   created_at: string
   updated_at: string
 }
+
 const initialForm: MapForm = {
   mapName: 'New Frontier',
   seedPhrase: '',
@@ -78,6 +79,22 @@ const initialForm: MapForm = {
   mapVersion: 'dm',
   resolution: 'high',
 }
+
+function mapPreviewStyle(form: MapForm) {
+  return {
+    background:
+      form.outputStyle === 'black_white'
+        ? 'linear-gradient(180deg, #f5f5f5 0%, #d9d9d9 100%)'
+        : 'linear-gradient(180deg, #314b39 0%, #203449 45%, #8f7d4d 100%)',
+  }
+}
+
+function resolveModel(form: MapForm): string {
+  if (form.engine === 'native') return 'native-generator'
+  if (form.geminiModelMode === 'pinned') return form.geminiPinnedModel || 'gemini-3.1-flash-image-preview'
+  return 'auto-latest-supported'
+}
+
 function backendMapToSavedMap(project: BackendMapProject): SavedMap {
   const data = project.map_data ?? {}
 
@@ -99,48 +116,33 @@ function backendMapToSavedMap(project: BackendMapProject): SavedMap {
     towers: typeof data.towers === 'number' ? data.towers : 1,
     ports: typeof data.ports === 'number' ? data.ports : 1,
     dungeons: typeof data.dungeons === 'number' ? data.dungeons : 1,
-    gridMode: data.gridMode === 'square' ? 'square' : 'hex',
+    gridMode: data.gridMode === 'square' || data.gridMode === 'none' ? data.gridMode : 'hex',
     engine: data.engine === 'gemini' ? 'gemini' : 'native',
     geminiModelMode: data.geminiModelMode === 'pinned' ? 'pinned' : 'auto',
     geminiPinnedModel:
       typeof data.geminiPinnedModel === 'string'
         ? data.geminiPinnedModel
         : 'gemini-3.1-flash-image-preview',
-    outputStyle:
-      data.outputStyle === 'sepia' || data.outputStyle === 'grayscale' ? data.outputStyle : 'color',
-    mapVersion:
-      data.mapVersion === 'player' || data.mapVersion === 'annotated' ? data.mapVersion : 'dm',
-    resolution:
-      data.resolution === 'medium' || data.resolution === 'ultra' ? data.resolution : 'high',
+    outputStyle: data.outputStyle === 'black_white' ? 'black_white' : 'color',
+    mapVersion: data.mapVersion === 'player' ? 'player' : 'dm',
+    resolution: data.resolution === 'standard' ? 'standard' : 'high',
     createdAt: project.created_at,
     resolvedModel:
       typeof data.resolvedModel === 'string'
         ? data.resolvedModel
         : typeof data.engine === 'string'
           ? data.engine
-          : 'native',
+          : 'native-generator',
     promptPreview: typeof data.promptPreview === 'string' ? data.promptPreview : project.summary,
   }
-}
-function mapPreviewStyle(form: MapForm) {
-  return {
-    background:
-      form.outputStyle === 'black_white'
-        ? 'linear-gradient(180deg, #f5f5f5 0%, #d9d9d9 100%)'
-        : 'linear-gradient(180deg, #314b39 0%, #203449 45%, #8f7d4d 100%)',
-  }
-}
-
-function resolveModel(form: MapForm): string {
-  if (form.engine === 'native') return 'native-generator'
-  if (form.geminiModelMode === 'pinned') return form.geminiPinnedModel || 'gemini-3.1-flash-image-preview'
-  return 'auto-latest-supported'
 }
 
 export function MapsPage() {
   const [form, setForm] = useState<MapForm>(initialForm)
   const [savedMaps, setSavedMaps] = useState<SavedMap[]>([])
   const [message, setMessage] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
 
   const promptPreview = useMemo(
     () =>
@@ -166,25 +168,63 @@ export function MapsPage() {
     [form],
   )
 
+  useEffect(() => {
+    void loadMaps()
+  }, [])
+
+  async function loadMaps() {
+    setIsLoading(true)
+    setMessage('')
+    try {
+      const items = await apiFetch<BackendMapProject[]>('/maps')
+      const normalized = items
+        .map(backendMapToSavedMap)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+      setSavedMaps(normalized)
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Unable to load saved maps')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   function updateField(key: keyof MapForm, value: string | number) {
     setForm((current) => ({ ...current, [key]: value } as MapForm))
   }
 
-  function generateMap() {
+  async function generateMap() {
+    setIsSaving(true)
+    setMessage('')
+
     const resolvedModel = resolveModel(form)
-    const next: SavedMap = {
-      ...form,
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      createdAt: new Date().toLocaleString(),
-      resolvedModel,
-      promptPreview,
+
+    try {
+      const created = await apiFetch<BackendMapProject>('/maps', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: form.mapName,
+          summary: promptPreview,
+          map_data: {
+            ...form,
+            resolvedModel,
+            promptPreview,
+          },
+        }),
+      })
+
+      const saved = backendMapToSavedMap(created)
+      setSavedMaps((current) => [saved, ...current.filter((item) => item.id !== saved.id)])
+      setMessage(
+        form.engine === 'native'
+          ? 'Native map project generated and saved.'
+          : `Gemini render request prepared using ${resolvedModel} and saved.`,
+      )
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Unable to save map')
+    } finally {
+      setIsSaving(false)
     }
-    setSavedMaps((current) => [next, ...current])
-    setMessage(
-      form.engine === 'native'
-        ? 'Native map project generated and saved.'
-        : `Gemini render request prepared using ${resolvedModel}.`,
-    )
   }
 
   function exportMap(map: SavedMap, mode: 'color' | 'black_white') {
@@ -201,6 +241,7 @@ export function MapsPage() {
       'Prompt Preview:',
       map.promptPreview,
     ].join('\n')
+
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
@@ -213,6 +254,7 @@ export function MapsPage() {
   function printMap(map: SavedMap) {
     const printWindow = window.open('', '_blank', 'width=1000,height=800')
     if (!printWindow) return
+
     printWindow.document.write(`
       <html>
         <head>
@@ -238,6 +280,7 @@ export function MapsPage() {
         </body>
       </html>
     `)
+
     printWindow.document.close()
     printWindow.focus()
     printWindow.print()
@@ -351,7 +394,9 @@ export function MapsPage() {
                         onChange={(e) => updateField('geminiPinnedModel', e.target.value)}
                       >
                         {GEMINI_MODEL_OPTIONS.filter((item) => item.id !== 'auto').map((item) => (
-                          <option key={item.id} value={item.id}>{item.label}</option>
+                          <option key={item.id} value={item.id}>
+                            {item.label}
+                          </option>
                         ))}
                       </select>
                     </label>
@@ -421,7 +466,12 @@ export function MapsPage() {
             </div>
 
             <div className="action-row">
-              <button type="button" onClick={generateMap}>Generate map</button>
+              <button type="button" onClick={() => void generateMap()} disabled={isSaving}>
+                {isSaving ? 'Saving...' : 'Generate map'}
+              </button>
+              <button type="button" className="button-link secondary" onClick={() => void loadMaps()} disabled={isLoading}>
+                {isLoading ? 'Loading...' : 'Reload saved maps'}
+              </button>
             </div>
           </div>
         </article>
