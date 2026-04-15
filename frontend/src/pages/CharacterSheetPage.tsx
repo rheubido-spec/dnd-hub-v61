@@ -71,40 +71,9 @@ async function buildFilledCharacterSheet(payload: ExportPayload): Promise<Uint8A
   return await pdfDoc.save()
 }
 
-  const pdfDoc = await PDFDocument.load(existingPdfBytes)
-  const form = pdfDoc.getForm()
-
-  const fieldMap: Record<string, string> = {
-    CharacterName: safeText(payload.name),
-    ClassLevel: [safeText(payload.char_class), payload.level ? String(payload.level) : '']
-      .filter(Boolean)
-      .join(' '),
-    Background: safeText(payload.background),
-    Race: safeText(payload.lineage),
-    Alignment: safeText(payload.alignment),
-    ProficiencBonus: payload.proficiency_bonus ? `+${payload.proficiency_bonus}` : '',
-    PersonalityTraits: safeText(payload.custom_backstory),
-    Equipment: Array.isArray(payload.loadout_summary) ? payload.loadout_summary.join('\n') : '',
-    FeaturesAndTraits: safeText(payload.ruleset_label),
-  }
-
-  for (const [fieldName, value] of Object.entries(fieldMap)) {
-    if (!value) continue
-    try {
-      const field = form.getTextField(fieldName)
-      field.setText(value)
-    } catch {
-      // Ignore missing fields for now.
-    }
-  }
-
-  form.flatten()
-  return await pdfDoc.save()
-}
-
 export function CharacterSheetPage() {
   const [payload, setPayload] = useState<ExportPayload | null>(null)
-  const [filledPdfUrl, setFilledPdfUrl] = useState<string>('')
+  const [filledPdfUrl, setFilledPdfUrl] = useState('')
   const [pdfMessage, setPdfMessage] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
 
@@ -133,8 +102,8 @@ export function CharacterSheetPage() {
 
       try {
         const bytes = await buildFilledCharacterSheet(payload)
-       const pdfBytes = bytes.slice()
-const blob = new Blob([pdfBytes], { type: 'application/pdf' })
+        const pdfBytes = bytes.slice()
+        const blob = new Blob([pdfBytes], { type: 'application/pdf' })
         objectUrl = URL.createObjectURL(blob)
         setFilledPdfUrl(objectUrl)
       } catch (error) {
@@ -261,7 +230,12 @@ const blob = new Blob([pdfBytes], { type: 'application/pdf' })
             <iframe
               title="Filled character sheet PDF preview"
               src={filledPdfUrl}
-              style={{ width: '100%', minHeight: '900px', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '16px' }}
+              style={{
+                width: '100%',
+                minHeight: '900px',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: '16px',
+              }}
             />
           ) : (
             <div className="notice">No filled PDF available yet.</div>
