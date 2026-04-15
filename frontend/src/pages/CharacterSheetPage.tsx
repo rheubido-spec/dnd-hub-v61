@@ -4,7 +4,7 @@ import { SourceBadge } from '../components/SourceBadge'
 import { PageHero } from '../components/PageHero'
 
 const CHARACTER_SHEET_EXPORT_KEY = 'dndhub_character_sheet_export'
-const CHARACTER_SHEET_PDF_URL = '/downloads/2024%20CS%20ver%20DC%20(Shrink).pdf'
+const CHARACTER_SHEET_PDF_URL = '/fillable-character-sheet-2024.pdf'
 
 type ExportPayload = {
   exported_at?: string
