@@ -1,5 +1,7 @@
-﻿import { useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
+import { apiFetch } from '../api/client'
 import { PageHero } from '../components/PageHero'
+import type { MapProject } from '../types'
 import {
   buildGeminiMapPrompt,
   GEMINI_MODEL_OPTIONS,
