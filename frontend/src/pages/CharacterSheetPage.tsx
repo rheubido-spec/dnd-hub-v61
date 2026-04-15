@@ -43,7 +43,7 @@ async function buildFilledCharacterSheet(payload: ExportPayload): Promise<Uint8A
     })),
   )
 
-    const fieldMap: Record<string, string> = {
+     const fieldMap: Record<string, string> = {
     Name: safeText(payload.name),
     Background: safeText(payload.background),
     Species: safeText(payload.lineage),
@@ -51,10 +51,11 @@ async function buildFilledCharacterSheet(payload: ExportPayload): Promise<Uint8A
     Subclass: '',
     Level: payload.level ? String(payload.level) : '',
     PB: payload.proficiency_bonus ? `+${payload.proficiency_bonus}` : '',
-    'Features.0.0': safeText(payload.ruleset_label),
+    'Features.0.0': '',
     'Features.0.1': safeText(payload.custom_backstory),
     'Notes.0': Array.isArray(payload.loadout_summary) ? payload.loadout_summary.join('\n') : '',
-    'Notes.2': safeText(payload.alignment),
+    'Notes.2': '',
+    'Notes.3': payload.ruleset_label ? `Ruleset: ${payload.ruleset_label}` : '',
   }
 
   for (const [fieldName, value] of Object.entries(fieldMap)) {
