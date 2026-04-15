@@ -39,13 +39,11 @@ type MapForm = {
   resolution: MapResolution
 }
 
-type SavedMap = {
-  id: number
-  name: string
-  summary: string
-  map_data: Record<string, unknown>
-  created_at: string
-  updated_at: string
+type SavedMap = MapForm & {
+  id: string
+  createdAt: string
+  resolvedModel: string
+  promptPreview: string
 }
 
 const initialForm: MapForm = {
@@ -74,16 +72,6 @@ const initialForm: MapForm = {
   resolution: 'high',
 }
 
-function mapProjectToSavedMap(project: MapProject): SavedMap {
-  return {
-    id: project.id,
-    name: project.name,
-    summary: project.summary,
-    map_data: project.map_data,
-    created_at: project.created_at,
-    updated_at: project.updated_at,
-  }
-}
 function mapPreviewStyle(form: MapForm) {
   return {
     background:
