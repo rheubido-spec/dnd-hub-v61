@@ -74,6 +74,16 @@ const initialForm: MapForm = {
   resolution: 'high',
 }
 
+function mapProjectToSavedMap(project: MapProject): SavedMap {
+  return {
+    id: project.id,
+    name: project.name,
+    summary: project.summary,
+    map_data: project.map_data,
+    created_at: project.created_at,
+    updated_at: project.updated_at,
+  }
+}
 function mapPreviewStyle(form: MapForm) {
   return {
     background:
