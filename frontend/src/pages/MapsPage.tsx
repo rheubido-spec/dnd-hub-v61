@@ -45,7 +45,14 @@ type SavedMap = MapForm & {
   resolvedModel: string
   promptPreview: string
 }
-
+type BackendMapProject = {
+  id: number
+  name: string
+  summary: string
+  map_data: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
 const initialForm: MapForm = {
   mapName: 'New Frontier',
   seedPhrase: '',
