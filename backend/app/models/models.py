@@ -132,7 +132,15 @@ class MapProject(Base, TimestampMixin):
     map_data: Mapped[dict] = mapped_column(JSONB, default=dict)
 
     owner: Mapped[User] = relationship(back_populates="map_projects")
+class EncounterTrackerState(Base, TimestampMixin):
+    __tablename__ = "encounter_tracker_states"
 
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(150), index=True, default="Encounter Tracker")
+    tracker_data: Mapped[dict] = mapped_column(JSONB, default=dict)
+
+    owner: Mapped[User] = relationship(back_populates="tracker_states")
 
 class ForumThread(Base, TimestampMixin):
     __tablename__ = "forum_threads"
