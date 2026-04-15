@@ -78,7 +78,50 @@ const initialForm: MapForm = {
   mapVersion: 'dm',
   resolution: 'high',
 }
+function backendMapToSavedMap(project: BackendMapProject): SavedMap {
+  const data = project.map_data ?? {}
 
+  return {
+    id: String(project.id),
+    mapName: typeof data.mapName === 'string' ? data.mapName : project.name,
+    seedPhrase: typeof data.seedPhrase === 'string' ? data.seedPhrase : '',
+    climate: typeof data.climate === 'string' ? data.climate : 'Temperate',
+    terrainNotes: typeof data.terrainNotes === 'string' ? data.terrainNotes : '',
+    mountains: typeof data.mountains === 'number' ? data.mountains : 4,
+    water: typeof data.water === 'number' ? data.water : 5,
+    forest: typeof data.forest === 'number' ? data.forest : 5,
+    desert: typeof data.desert === 'number' ? data.desert : 1,
+    swamp: typeof data.swamp === 'number' ? data.swamp : 1,
+    settlements: typeof data.settlements === 'number' ? data.settlements : 4,
+    roads: typeof data.roads === 'number' ? data.roads : 3,
+    castles: typeof data.castles === 'number' ? data.castles : 1,
+    ruins: typeof data.ruins === 'number' ? data.ruins : 1,
+    towers: typeof data.towers === 'number' ? data.towers : 1,
+    ports: typeof data.ports === 'number' ? data.ports : 1,
+    dungeons: typeof data.dungeons === 'number' ? data.dungeons : 1,
+    gridMode: data.gridMode === 'square' ? 'square' : 'hex',
+    engine: data.engine === 'gemini' ? 'gemini' : 'native',
+    geminiModelMode: data.geminiModelMode === 'pinned' ? 'pinned' : 'auto',
+    geminiPinnedModel:
+      typeof data.geminiPinnedModel === 'string'
+        ? data.geminiPinnedModel
+        : 'gemini-3.1-flash-image-preview',
+    outputStyle:
+      data.outputStyle === 'sepia' || data.outputStyle === 'grayscale' ? data.outputStyle : 'color',
+    mapVersion:
+      data.mapVersion === 'player' || data.mapVersion === 'annotated' ? data.mapVersion : 'dm',
+    resolution:
+      data.resolution === 'medium' || data.resolution === 'ultra' ? data.resolution : 'high',
+    createdAt: project.created_at,
+    resolvedModel:
+      typeof data.resolvedModel === 'string'
+        ? data.resolvedModel
+        : typeof data.engine === 'string'
+          ? data.engine
+          : 'native',
+    promptPreview: typeof data.promptPreview === 'string' ? data.promptPreview : project.summary,
+  }
+}
 function mapPreviewStyle(form: MapForm) {
   return {
     background:
