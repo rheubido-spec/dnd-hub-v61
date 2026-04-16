@@ -43,7 +43,7 @@ async function buildFilledCharacterSheet(payload: ExportPayload): Promise<Uint8A
     })),
   )
 
-   const fieldMap: Record<string, string> = {
+ const fieldMap: Record<string, string> = {
   Name: safeText(payload.name),
   Background: safeText(payload.background),
   Species: safeText(payload.lineage),
@@ -57,7 +57,6 @@ async function buildFilledCharacterSheet(payload: ExportPayload): Promise<Uint8A
   'Notes.2': '',
   'Notes.3': '',
 }
-
   for (const [fieldName, value] of Object.entries(fieldMap)) {
     if (!value) continue
     try {
