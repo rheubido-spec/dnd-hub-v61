@@ -43,7 +43,7 @@ async function buildFilledCharacterSheet(payload: ExportPayload): Promise<Uint8A
     })),
   )
 
- const fieldMap: Record<string, string> = {
+const fieldMap: Record<string, string> = {
   Name: safeText(payload.name),
   Background: safeText(payload.background),
   Species: safeText(payload.lineage),
