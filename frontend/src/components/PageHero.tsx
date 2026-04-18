@@ -104,7 +104,7 @@ export function PageHero({
           })
         }
       } catch {
-        // Ignore invalid saved crop values.
+        // ignore bad saved values
       }
     }
 
@@ -121,8 +121,7 @@ export function PageHero({
   }
 
   function handlePointerDown(event: React.PointerEvent<HTMLImageElement>) {
-    if (!editorEnabled) return
-    if (!heroRef.current) return
+    if (!editorEnabled || !heroRef.current) return
 
     event.preventDefault()
 
@@ -170,11 +169,7 @@ export function PageHero({
   }
 
   return (
-    <section
-      ref={heroRef}
-      className={`page-hero page-hero--${variant}${sharedBannerClass}`}
-      style={{ position: 'relative' }}
-    >
+    <section ref={heroRef} className={`page-hero page-hero--${variant}${sharedBannerClass}`}>
       <img
         className="page-hero__image"
         src={imageSrc}
@@ -189,24 +184,18 @@ export function PageHero({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
       />
+
       <div className="page-hero__overlay" />
 
-      <button
-        type="button"
-        className="button-link secondary"
-        onClick={toggleEditor}
-        style={{
-          position: 'absolute',
-          top: '1rem',
-          right: '1rem',
-          zIndex: 3,
-          minHeight: '40px',
-          padding: '0.55rem 0.9rem',
-          boxShadow: '0 8px 22px rgba(0,0,0,0.28)',
-        }}
-      >
-       BANNER TEST BUTTON
-      </button>
+      <div className="page-hero__editor-anchor">
+        <button
+          type="button"
+          className="button-link secondary page-hero__editor-button"
+          onClick={toggleEditor}
+        >
+          {editorEnabled ? 'Hide banner crop editor' : 'Edit banner crop'}
+        </button>
+      </div>
 
       <div className="page-hero__content">
         <div>
@@ -226,17 +215,7 @@ export function PageHero({
         ) : null}
 
         {editorEnabled && editorOpen ? (
-          <div
-            className="card stack"
-            style={{
-              marginTop: '1rem',
-              background: 'rgba(16, 12, 10, 0.86)',
-              border: '1px solid rgba(214, 180, 96, 0.3)',
-              maxWidth: '28rem',
-              position: 'relative',
-              zIndex: 2,
-            }}
-          >
+          <div className="card stack page-hero__editor-panel">
             <strong>Banner crop editor</strong>
             <small>Drag the image directly or use the sliders below. Values save to localStorage for this page.</small>
 
