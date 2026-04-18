@@ -205,7 +205,7 @@ export function PageHero({
           boxShadow: '0 8px 22px rgba(0,0,0,0.28)',
         }}
       >
-        {editorEnabled ? 'Hide banner crop editor' : 'Edit banner crop'}
+       BANNER TEST BUTTON
       </button>
 
       <div className="page-hero__content">
