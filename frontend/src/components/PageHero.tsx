@@ -32,16 +32,22 @@ function parseObjectPosition(input?: string): CropPosition {
   const yPart = parts[1]
 
   const x =
-    xPart === 'left' ? 0
-    : xPart === 'right' ? 100
-    : xPart === 'center' ? 50
-    : Number.parseFloat(xPart)
+    xPart === 'left'
+      ? 0
+      : xPart === 'right'
+        ? 100
+        : xPart === 'center'
+          ? 50
+          : Number.parseFloat(xPart)
 
   const y =
-    yPart === 'top' ? 0
-    : yPart === 'bottom' ? 100
-    : yPart === 'center' ? 50
-    : Number.parseFloat(yPart)
+    yPart === 'top'
+      ? 0
+      : yPart === 'bottom'
+        ? 100
+        : yPart === 'center'
+          ? 50
+          : Number.parseFloat(yPart)
 
   return {
     x: Number.isFinite(x) ? x : 50,
@@ -84,7 +90,6 @@ export function PageHero({
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-
     const enabledFromUrl = params.get('editBanners') === '1'
     const enabledFromStorage = localStorage.getItem('dndhub_banner_editor') === 'on'
 
@@ -117,8 +122,7 @@ export function PageHero({
 
   function handlePointerDown(event: React.PointerEvent<HTMLImageElement>) {
     if (!editorEnabled) return
-    const element = heroRef.current
-    if (!element) return
+    if (!heroRef.current) return
 
     event.preventDefault()
 
@@ -166,7 +170,11 @@ export function PageHero({
   }
 
   return (
-    <section ref={heroRef} className={`page-hero page-hero--${variant}${sharedBannerClass}`}>
+    <section
+      ref={heroRef}
+      className={`page-hero page-hero--${variant}${sharedBannerClass}`}
+      style={{ position: 'relative' }}
+    >
       <img
         className="page-hero__image"
         src={imageSrc}
@@ -182,17 +190,29 @@ export function PageHero({
         onPointerCancel={handlePointerUp}
       />
       <div className="page-hero__overlay" />
-      <div className="page-hero__content">
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'flex-start' }}>
-          <div>
-            <p className="eyebrow">{eyebrow}</p>
-            <h1>{title}</h1>
-            <p>{description}</p>
-          </div>
 
-          <button type="button" className="button-link secondary" onClick={toggleEditor}>
-            {editorEnabled ? 'Hide banner crop editor' : 'Edit banner crop'}
-          </button>
+      <button
+        type="button"
+        className="button-link secondary"
+        onClick={toggleEditor}
+        style={{
+          position: 'absolute',
+          top: '1rem',
+          right: '1rem',
+          zIndex: 3,
+          minHeight: '40px',
+          padding: '0.55rem 0.9rem',
+          boxShadow: '0 8px 22px rgba(0,0,0,0.28)',
+        }}
+      >
+        {editorEnabled ? 'Hide banner crop editor' : 'Edit banner crop'}
+      </button>
+
+      <div className="page-hero__content">
+        <div>
+          <p className="eyebrow">{eyebrow}</p>
+          <h1>{title}</h1>
+          <p>{description}</p>
         </div>
 
         {tags.length ? (
@@ -210,9 +230,11 @@ export function PageHero({
             className="card stack"
             style={{
               marginTop: '1rem',
-              background: 'rgba(16, 12, 10, 0.78)',
+              background: 'rgba(16, 12, 10, 0.86)',
               border: '1px solid rgba(214, 180, 96, 0.3)',
-              maxWidth: '26rem',
+              maxWidth: '28rem',
+              position: 'relative',
+              zIndex: 2,
             }}
           >
             <strong>Banner crop editor</strong>
@@ -241,7 +263,9 @@ export function PageHero({
             </label>
 
             <div className="action-row">
-              <button type="button" onClick={resetCrop}>Reset</button>
+              <button type="button" onClick={resetCrop}>
+                Reset
+              </button>
               <button type="button" className="button-link secondary" onClick={() => void copyCropValue()}>
                 Copy CSS
               </button>
