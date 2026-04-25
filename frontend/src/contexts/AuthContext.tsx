@@ -197,12 +197,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function logout(): Promise<void> {
-    try {
-      await apiFetch('/auth/logout', { method: 'POST' })
-    } catch {
-      // clear local auth state even if server logout fails
-    }
-
     writeStoredToken(null)
     writeStoredUser(null)
     setUser(null)
