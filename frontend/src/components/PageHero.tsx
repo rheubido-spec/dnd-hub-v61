@@ -134,7 +134,6 @@ export function PageHero({
 
   const [crop, setCrop] = useState<CropPosition>(defaultCrop)
   const [editorEnabled, setEditorEnabled] = useState(false)
-  const [editorOpen, setEditorOpen] = useState(false)
   const [canEdit, setCanEdit] = useState(false)
   const [locked, setLocked] = useState(true)
 
@@ -167,11 +166,9 @@ export function PageHero({
 
     if (allowed && (enabledFromUrl || enabledFromStorage)) {
       setEditorEnabled(true)
-      setEditorOpen(true)
       localStorage.setItem('dndhub_banner_editor', 'on')
     } else {
       setEditorEnabled(false)
-      setEditorOpen(false)
     }
   }, [defaultCrop, imageSrc, storageKey])
 
@@ -232,69 +229,69 @@ export function PageHero({
     if (!canEdit) return
     const next = !editorEnabled
     setEditorEnabled(next)
-    setEditorOpen(next)
     localStorage.setItem('dndhub_banner_editor', next ? 'on' : 'off')
   }
 
   function toggleLocked() {
-    const nextLocked = !locked
-    persist(crop, nextLocked)
+    persist(crop, !locked)
   }
 
   return (
-    <section
-      ref={heroRef}
-      className={`page-hero page-hero--${variant}${sharedBannerClass}`}
-      style={{ position: 'relative' }}
-    >
-      <img
-        className="page-hero__image"
-        src={imageSrc}
-        alt={imageAlt}
-        style={{
-          objectPosition: `${crop.x}% ${crop.y}%`,
-          cursor: canEdit && editorEnabled && !locked ? 'grab' : undefined,
-          userSelect: 'none',
-        }}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-      />
+    <div className="stack" style={{ gap: '0.75rem' }}>
+      <section
+        ref={heroRef}
+        className={`page-hero page-hero--${variant}${sharedBannerClass}`}
+        style={{ position: 'relative' }}
+      >
+        <img
+          className="page-hero__image"
+          src={imageSrc}
+          alt={imageAlt}
+          style={{
+            objectPosition: `${crop.x}% ${crop.y}%`,
+            cursor: canEdit && editorEnabled && !locked ? 'grab' : undefined,
+            userSelect: 'none',
+          }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+        />
 
-      <div className="page-hero__overlay" />
+        <div className="page-hero__overlay" />
 
-      <div className="page-hero__content" style={{ position: 'relative', zIndex: 2 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'flex-start' }}>
-          <div>
-            <p className="eyebrow">{eyebrow}</p>
-            <h1>{title}</h1>
-            <p>{description}</p>
+        <div className="page-hero__content" style={{ position: 'relative', zIndex: 2 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'flex-start' }}>
+            <div>
+              <p className="eyebrow">{eyebrow}</p>
+              <h1>{title}</h1>
+              <p>{description}</p>
+            </div>
           </div>
+
+          {tags.length ? (
+            <div className="chip-row">
+              {tags.map((tag) => (
+                <span key={tag} className="tag">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          ) : null}
+
+          {children}
         </div>
-
-        {tags.length ? (
-          <div className="chip-row">
-            {tags.map((tag) => (
-              <span key={tag} className="tag">
-                {tag}
-              </span>
-            ))}
-          </div>
-        ) : null}
-
-        {children}
-      </div>
+      </section>
 
       {canEdit ? (
-        <div
+        <section
           className="card stack"
           style={{
-            marginTop: '0.75rem',
             position: 'relative',
-            zIndex: 5,
-            background: 'rgba(16, 12, 10, 0.88)',
+            zIndex: 10,
+            background: 'rgba(16, 12, 10, 0.92)',
             border: '1px solid rgba(214, 180, 96, 0.35)',
+            marginBottom: '0.75rem',
           }}
         >
           <div
@@ -359,8 +356,8 @@ export function PageHero({
               </small>
             </>
           ) : null}
-        </div>
+        </section>
       ) : null}
-    </section>
+    </div>
   )
 }
