@@ -17,6 +17,17 @@ type CropPosition = {
   y: number
 }
 
+type CurrentUser = {
+  username?: string
+  is_superuser?: boolean
+}
+
+type BannerPrefs = {
+  crop: CropPosition
+  locked: boolean
+  imageSrc: string
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
@@ -32,22 +43,16 @@ function parseObjectPosition(input?: string): CropPosition {
   const yPart = parts[1]
 
   const x =
-    xPart === 'left'
-      ? 0
-      : xPart === 'right'
-        ? 100
-        : xPart === 'center'
-          ? 50
-          : Number.parseFloat(xPart)
+    xPart === 'left' ? 0
+    : xPart === 'right' ? 100
+    : xPart === 'center' ? 50
+    : Number.parseFloat(xPart)
 
   const y =
-    yPart === 'top'
-      ? 0
-      : yPart === 'bottom'
-        ? 100
-        : yPart === 'center'
-          ? 50
-          : Number.parseFloat(yPart)
+    yPart === 'top' ? 0
+    : yPart === 'bottom' ? 100
+    : yPart === 'center' ? 50
+    : Number.parseFloat(yPart)
 
   return {
     x: Number.isFinite(x) ? x : 50,
@@ -55,8 +60,58 @@ function parseObjectPosition(input?: string): CropPosition {
   }
 }
 
-function storageKeyForBanner(variant: string, title: string, imageSrc: string): string {
-  return `dndhub_banner_crop:${variant}:${title}:${imageSrc}`
+function storageKeyForBanner(variant: string, imageSrc: string): string {
+  return `dndhub_banner_prefs:${variant}:${imageSrc}`
+}
+
+function readCurrentUser(): CurrentUser | null {
+  const raw = localStorage.getItem('dndhub_user')
+  if (!raw) return null
+
+  try {
+    return JSON.parse(raw) as CurrentUser
+  } catch {
+    return null
+  }
+}
+
+function canEditPageChrome(user: CurrentUser | null): boolean {
+  if (!user) return false
+  if (user.is_superuser) return true
+  return (user.username || '').toLowerCase() === 'rheubido'
+}
+
+function loadBannerPrefs(storageKey: string): BannerPrefs | null {
+  const raw = localStorage.getItem(storageKey)
+  if (!raw) return null
+
+  try {
+    const parsed = JSON.parse(raw) as BannerPrefs
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      parsed.crop &&
+      typeof parsed.crop.x === 'number' &&
+      typeof parsed.crop.y === 'number'
+    ) {
+      return {
+        crop: {
+          x: clamp(parsed.crop.x, 0, 100),
+          y: clamp(parsed.crop.y, 0, 100),
+        },
+        locked: Boolean(parsed.locked),
+        imageSrc: typeof parsed.imageSrc === 'string' ? parsed.imageSrc : '',
+      }
+    }
+  } catch {
+    // ignore invalid storage
+  }
+
+  return null
+}
+
+function saveBannerPrefs(storageKey: string, prefs: BannerPrefs) {
+  localStorage.setItem(storageKey, JSON.stringify(prefs))
 }
 
 export function PageHero({
@@ -75,53 +130,65 @@ export function PageHero({
     : ''
 
   const defaultCrop = useMemo(() => parseObjectPosition(imageObjectPosition), [imageObjectPosition])
-  const storageKey = useMemo(() => storageKeyForBanner(variant, title, imageSrc), [variant, title, imageSrc])
+  const storageKey = useMemo(() => storageKeyForBanner(variant, imageSrc), [variant, imageSrc])
 
   const [crop, setCrop] = useState<CropPosition>(defaultCrop)
   const [editorEnabled, setEditorEnabled] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)
+  const [canEdit, setCanEdit] = useState(false)
+  const [locked, setLocked] = useState(true)
 
   const heroRef = useRef<HTMLElement | null>(null)
   const dragStateRef = useRef<{ startX: number; startY: number; startCrop: CropPosition } | null>(null)
 
   useEffect(() => {
-    setCrop(defaultCrop)
-  }, [defaultCrop])
+    const user = readCurrentUser()
+    const allowed = canEditPageChrome(user)
+    setCanEdit(allowed)
 
-  useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const enabledFromUrl = params.get('editBanners') === '1'
     const enabledFromStorage = localStorage.getItem('dndhub_banner_editor') === 'on'
 
-    const savedCrop = localStorage.getItem(storageKey)
-    if (savedCrop) {
-      try {
-        const parsed = JSON.parse(savedCrop) as CropPosition
-        if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
-          setCrop({
-            x: clamp(parsed.x, 0, 100),
-            y: clamp(parsed.y, 0, 100),
-          })
-        }
-      } catch {
-        // ignore bad saved values
-      }
+    const savedPrefs = loadBannerPrefs(storageKey)
+
+    if (savedPrefs && savedPrefs.imageSrc === imageSrc) {
+      setCrop(savedPrefs.crop)
+      setLocked(savedPrefs.locked)
+    } else {
+      setCrop(defaultCrop)
+      setLocked(true)
+      saveBannerPrefs(storageKey, {
+        crop: defaultCrop,
+        locked: true,
+        imageSrc,
+      })
     }
 
-    if (enabledFromUrl || enabledFromStorage) {
+    if (allowed && (enabledFromUrl || enabledFromStorage)) {
       setEditorEnabled(true)
       setEditorOpen(true)
       localStorage.setItem('dndhub_banner_editor', 'on')
+    } else {
+      setEditorEnabled(false)
+      setEditorOpen(false)
     }
-  }, [storageKey])
+  }, [defaultCrop, imageSrc, storageKey])
 
-  function saveCrop(nextCrop: CropPosition) {
+  function persist(nextCrop: CropPosition, nextLocked: boolean) {
     setCrop(nextCrop)
-    localStorage.setItem(storageKey, JSON.stringify(nextCrop))
+    setLocked(nextLocked)
+    saveBannerPrefs(storageKey, {
+      crop: nextCrop,
+      locked: nextLocked,
+      imageSrc,
+    })
   }
 
   function handlePointerDown(event: React.PointerEvent<HTMLImageElement>) {
-    if (!editorEnabled || !heroRef.current) return
+    if (!canEdit || !editorEnabled || locked) return
+    const element = heroRef.current
+    if (!element) return
 
     event.preventDefault()
 
@@ -135,7 +202,7 @@ export function PageHero({
   }
 
   function handlePointerMove(event: React.PointerEvent<HTMLImageElement>) {
-    if (!editorEnabled || !dragStateRef.current || !heroRef.current) return
+    if (!canEdit || !editorEnabled || locked || !dragStateRef.current || !heroRef.current) return
 
     const rect = heroRef.current.getBoundingClientRect()
     const deltaX = ((event.clientX - dragStateRef.current.startX) / rect.width) * 100
@@ -149,12 +216,12 @@ export function PageHero({
 
   function handlePointerUp() {
     if (!dragStateRef.current) return
-    saveCrop(crop)
+    persist(crop, locked)
     dragStateRef.current = null
   }
 
   function resetCrop() {
-    saveCrop(defaultCrop)
+    persist(defaultCrop, true)
   }
 
   async function copyCropValue() {
@@ -162,21 +229,31 @@ export function PageHero({
   }
 
   function toggleEditor() {
+    if (!canEdit) return
     const next = !editorEnabled
     setEditorEnabled(next)
     setEditorOpen(next)
     localStorage.setItem('dndhub_banner_editor', next ? 'on' : 'off')
   }
 
+  function toggleLocked() {
+    const nextLocked = !locked
+    persist(crop, nextLocked)
+  }
+
   return (
-    <section ref={heroRef} className={`page-hero page-hero--${variant}${sharedBannerClass}`}>
+    <section
+      ref={heroRef}
+      className={`page-hero page-hero--${variant}${sharedBannerClass}`}
+      style={{ position: 'relative' }}
+    >
       <img
         className="page-hero__image"
         src={imageSrc}
         alt={imageAlt}
         style={{
           objectPosition: `${crop.x}% ${crop.y}%`,
-          cursor: editorEnabled ? 'grab' : undefined,
+          cursor: canEdit && editorEnabled && !locked ? 'grab' : undefined,
           userSelect: 'none',
         }}
         onPointerDown={handlePointerDown}
@@ -187,21 +264,13 @@ export function PageHero({
 
       <div className="page-hero__overlay" />
 
-      <div className="page-hero__editor-anchor">
-        <button
-          type="button"
-          className="button-link secondary page-hero__editor-button"
-          onClick={toggleEditor}
-        >
-          {editorEnabled ? 'Hide banner crop editor' : 'Edit banner crop'}
-        </button>
-      </div>
-
-      <div className="page-hero__content">
-        <div>
-          <p className="eyebrow">{eyebrow}</p>
-          <h1>{title}</h1>
-          <p>{description}</p>
+      <div className="page-hero__content" style={{ position: 'relative', zIndex: 2 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'flex-start' }}>
+          <div>
+            <p className="eyebrow">{eyebrow}</p>
+            <h1>{title}</h1>
+            <p>{description}</p>
+          </div>
         </div>
 
         {tags.length ? (
@@ -214,46 +283,84 @@ export function PageHero({
           </div>
         ) : null}
 
-        {editorEnabled && editorOpen ? (
-          <div className="card stack page-hero__editor-panel">
-            <strong>Banner crop editor</strong>
-            <small>Drag the image directly or use the sliders below. Values save to localStorage for this page.</small>
-
-            <label>
-              Horizontal ({crop.x.toFixed(0)}%)
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={crop.x}
-                onChange={(event) => saveCrop({ ...crop, x: Number(event.target.value) })}
-              />
-            </label>
-
-            <label>
-              Vertical ({crop.y.toFixed(0)}%)
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={crop.y}
-                onChange={(event) => saveCrop({ ...crop, y: Number(event.target.value) })}
-              />
-            </label>
-
-            <div className="action-row">
-              <button type="button" onClick={resetCrop}>
-                Reset
-              </button>
-              <button type="button" className="button-link secondary" onClick={() => void copyCropValue()}>
-                Copy CSS
-              </button>
-            </div>
-          </div>
-        ) : null}
-
         {children}
       </div>
+
+      {canEdit ? (
+        <div
+          className="card stack"
+          style={{
+            marginTop: '0.75rem',
+            position: 'relative',
+            zIndex: 5,
+            background: 'rgba(16, 12, 10, 0.88)',
+            border: '1px solid rgba(214, 180, 96, 0.35)',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              gap: '0.75rem',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+            }}
+          >
+            <button type="button" className="button-link secondary" onClick={toggleEditor}>
+              {editorEnabled ? 'Hide banner editor' : 'Edit banner'}
+            </button>
+
+            {editorEnabled ? (
+              <>
+                <button type="button" onClick={toggleLocked}>
+                  {locked ? 'Unlock position' : 'Lock position'}
+                </button>
+                <button type="button" onClick={resetCrop}>
+                  Reset
+                </button>
+                <button type="button" className="button-link secondary" onClick={() => void copyCropValue()}>
+                  Copy CSS
+                </button>
+              </>
+            ) : null}
+          </div>
+
+          {editorEnabled ? (
+            <>
+              <small>
+                Banner positions stay locked after saving. They only reset when you unlock them, reset them, or the image source changes.
+              </small>
+
+              <label>
+                Horizontal ({crop.x.toFixed(0)}%)
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={crop.x}
+                  disabled={locked}
+                  onChange={(event) => persist({ ...crop, x: Number(event.target.value) }, locked)}
+                />
+              </label>
+
+              <label>
+                Vertical ({crop.y.toFixed(0)}%)
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={crop.y}
+                  disabled={locked}
+                  onChange={(event) => persist({ ...crop, y: Number(event.target.value) }, locked)}
+                />
+              </label>
+
+              <small>
+                Status: <strong>{locked ? 'Locked' : 'Unlocked'}</strong>
+              </small>
+            </>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   )
 }
