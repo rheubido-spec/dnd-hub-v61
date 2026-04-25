@@ -15,11 +15,18 @@ type LoginResult = {
   [key: string]: unknown
 }
 
+type RegisterPayload = {
+  username: string
+  password: string
+  email?: string
+}
+
 type AuthContextValue = {
   user: AuthUser | null
   ready: boolean
   isAuthenticated: boolean
   login: (username: string, password: string) => Promise<AuthUser>
+  register: (username: string, password: string, email?: string) => Promise<AuthUser>
   logout: () => Promise<void>
   refreshUser: () => Promise<AuthUser | null>
   setUser: React.Dispatch<React.SetStateAction<AuthUser | null>>
@@ -62,6 +69,10 @@ function writeStoredToken(token: string | null) {
   localStorage.setItem(TOKEN_KEY, token)
 }
 
+async function fetchMe(): Promise<AuthUser> {
+  return apiFetch<AuthUser>('/auth/me', { method: 'GET' })
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [ready, setReady] = useState(false)
@@ -75,7 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const me = await apiFetch<AuthUser>('/auth/me', { method: 'GET' })
+      const me = await fetchMe()
       setUser(me)
       writeStoredUser(me)
       return me
@@ -112,7 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       data = (await response.json()) as LoginResult | { detail?: string }
     } catch {
-      // keep empty fallback
+      // ignore parse failure and use fallback below
     }
 
     if (!response.ok) {
@@ -137,7 +148,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let nextUser: AuthUser | null = null
 
     try {
-      nextUser = await apiFetch<AuthUser>('/auth/me', { method: 'GET' })
+      nextUser = await fetchMe()
     } catch {
       if (typeof data === 'object' && data && 'user' in data && data.user && typeof data.user === 'object') {
         nextUser = data.user as AuthUser
@@ -153,11 +164,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return nextUser
   }
 
+  async function register(username: string, password: string, email?: string): Promise<AuthUser> {
+    const payload: RegisterPayload = { username, password }
+    if (email && email.trim()) {
+      payload.email = email.trim()
+    }
+
+    const response = await fetch(buildApiUrl('/auth/register'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    })
+
+    let data: { detail?: string } | Record<string, unknown> = {}
+    try {
+      data = (await response.json()) as { detail?: string } | Record<string, unknown>
+    } catch {
+      // ignore parse failure and use fallback below
+    }
+
+    if (!response.ok) {
+      const detail =
+        typeof data === 'object' && data && 'detail' in data && typeof data.detail === 'string'
+          ? data.detail
+          : 'Registration failed'
+      throw new Error(detail)
+    }
+
+    return login(username, password)
+  }
+
   async function logout(): Promise<void> {
     try {
       await apiFetch('/auth/logout', { method: 'POST' })
     } catch {
-      // still clear local auth state even if the request fails
+      // clear local auth state even if server logout fails
     }
 
     writeStoredToken(null)
@@ -171,6 +214,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ready,
       isAuthenticated: !!user && !!readStoredToken(),
       login,
+      register,
       logout,
       refreshUser,
       setUser,
